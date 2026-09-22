@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feed Planner & Instagram Preview</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Ocultar barra de scroll en el móvil de Instagram */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-[#FBFBFA] text-[#37352F] antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const initialProfile = {
+      username: "mon_compte_creatif",
+      name: "Studio Créatif & Design",
+      category: "Créateur digital / Agence",
+      bio: "✨ Direction artistique & Stratégie visuelle\n🌿 Minimaliste, durable et moderne\n👇 Découvrez nos dernières créations",
+      website: "linktr.ee/monstudio",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+      postsCount: 18,
+      followers: "12.4k",
+      following: 342,
+    };
+
+    const initialPosts = [
+      {
+        id: "post-1",
+        title: "Lancement collection automne",
+        caption: "La nouvelle collection arrive vendredi ! Quelle est votre pièce préférée ?",
+        date: "2026-09-22",
+        time: "18:00",
+        type: "carousel",
+        status: "scheduled",
+        image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=600&auto=format&fit=crop&q=80",
+        likes: 245
+      },
+      {
+        id: "post-2",
+        title: "Behind the scenes shooting",
+        caption: "En plein travail sur les derniers visuels de la campagne ✨ #backstage #studiovibes",
+        date: "2026-09-24",
+        time: "12:30",
+        type: "reel",
+        status: "scheduled",
+        image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop&q=80",
+        likes: 412
+      },
+      {
+        id: "post-3",
+        title: "Palette de couleurs & Inspiration",
+        caption: "Moodboard hebdomadaire : douceur, teintes terreuses et lignes pures.",
+        date: "2026-09-26",
+        time: "19:00",
+        type: "photo",
+        status: "draft",
+        image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600&auto=format&fit=crop&q=80",
+        likes: 180
+      }
+    ];
+
+    function App() {
+      const [profile, setProfile] = useState(() => {
+        const saved = localStorage.getItem("notion_ig_profile");
+        return saved ? JSON.parse(saved) : initialProfile;
+      });
+
+      const [posts, setPosts] = useState(() => {
+        const saved = localStorage.getItem("notion_ig_posts");
+        return saved ? JSON.parse(saved) : initialPosts;
+      });
+
+      const [editingProfile, setEditingProfile] = useState(false);
+      const [selectedPost, setSelectedPost] = useState(null);
+      const [currentMonth] = useState(new Date());
+
+      useEffect(() => {
+        localStorage.setItem("notion_ig_profile", JSON.stringify(profile));
+      }, [profile]);
+
+      useEffect(() => {
+        localStorage.setItem("notion_ig_posts", JSON.stringify(posts));
+      }, [posts]);
+
+      // Drag and Drop
+      const handleDragStart = (e, postId) => {
+        e.dataTransfer.setData("postId", postId);
+      };
+
+      const handleDrop = (e, targetDateStr) => {
+        e.preventDefault();
+        const postId = e.dataTransfer.getData("postId");
+        if (!postId) return;
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, date: targetDateStr } : p));
+      };
+
+      // Subir fotos locales en base64
+      const handleImageUpload = (e, callback) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => callback(reader.result);
+        reader.readAsDataURL(file);
+      };
+
+      // Días del mes para el calendario
+      const daysInMonth = 30; // Sep
+      const days = Array.from({ length: daysInMonth }, (_, i) => {
+        const dayNum = i + 1;
+        const dateStr = `2026-09-${String(dayNum).padStart(2, '0')}`;
+        return { dayNum, dateStr };
+      });
+
+      // Posts ordenados para Instagram
+      const igPosts = [...posts].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      return (
+        <div className="flex flex-col lg:flex-row min-h-screen bg-[#FBFBFA]">
+          {/* COLUMNA IZQUIERDA: PLANIFICADOR TIPO NOTION */}
+          <div className="flex-1 p-6 border-r border-[#EBEBEA] overflow-y-auto">
+            <div className="max-w-4xl mx-auto">
+              {/* Header Notion */}
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#EDEDED]">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🗓️</span>
+                  <div>
+                    <h1 className="text-xl font-bold text-[#37352F]">Calendario de Publicaciones</h1>
+                    <p className="text-xs text-[#787774]">Arrastra y suelta posts para cambiar fechas</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const newP = {
+                      id: "post-" + Date.now(),
+                      title: "Nuevo post",
+                      caption: "Escribe tu copy aquí...",
+                      date: "2026-09-22",
+                      time: "18:00",
+                      type: "photo",
+                      status: "draft",
+                      image: "https://images.unsplash.com/photo-1513094735237-8f2714d57c13?w=600&auto=format&fit=crop&q=80",
+                      likes: 120
+                    };
+                    setPosts([newP, ...posts]);
+                    setSelectedPost(newP);
+                  }}
+                  className="bg-[#2383E2] hover:bg-[#1B66B1] text-white px-3 py-1.5 rounded text-sm font-medium transition shadow-sm"
+                >
+                  + Nuevo Post
+                </button>
+              </div>
+
+              {/* Calendario Cuadrícula */}
+              <div className="grid grid-cols-7 gap-2">
+                {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(d => (
+                  <div key={d} className="text-center font-medium text-xs text-[#787774] py-1">{d}</div>
+                ))}
+
+                {/* 1 sep 2026 fue martes, 1 espacio vacío */}
+                <div className="h-28 bg-[#F7F6F5] rounded border border-dashed border-[#E0E0DE]"></div>
+
+                {days.map(({ dayNum, dateStr }) => {
+                  const dayPosts = posts.filter(p => p.date === dateStr);
+                  return (
+                    <div
+                      key={dateStr}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, dateStr)}
+                      className="h-28 p-1.5 border border-[#E9E9E7] rounded bg-white hover:border-[#2383E2] transition flex flex-col justify-between overflow-hidden shadow-xs"
+                    >
+                      <div className="text-[11px] font-semibold text-[#787774]">{dayNum}</div>
+                      <div className="flex-1 overflow-y-auto space-y-1">
+                        {dayPosts.map(post => (
+                          <div
+                            key={post.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, post.id)}
+                            onClick={() => setSelectedPost(post)}
+                            className="p-1 rounded bg-[#F7F6F5] border border-[#E0E0DE] text-[11px] cursor-grab active:cursor-grabbing hover:bg-[#EDEDEB] truncate flex items-center gap-1.5"
+                          >
+                            <img src={post.image} className="w-4 h-4 object-cover rounded" />
+                            <span className="truncate">{post.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* COLUMNA DERECHA: MÓVIL INSTAGRAM EN VIVO */}
+          <div className="w-full lg:w-[450px] p-6 flex flex-col items-center justify-start bg-[#F7F6F5]">
+            <div className="w-full flex items-center justify-between mb-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#787774]">Vista Previa Móvil</span>
+              <button
+                onClick={() => setEditingProfile(true)}
+                className="text-xs bg-white border border-[#E0E0DE] px-2.5 py-1 rounded shadow-xs hover:bg-[#EBEBEA] font-medium"
+              >
+                ✏️ Editar Perfil
+              </button>
+            </div>
+
+            {/* Carcasa iPhone */}
+            <div className="w-[360px] bg-white rounded-[40px] border-[8px] border-[#1A1A1A] shadow-2xl overflow-hidden flex flex-col min-h-[700px]">
+              {/* Notch */}
+              <div className="w-full h-6 bg-[#1A1A1A] flex justify-center items-end pb-1">
+                <div className="w-24 h-3.5 bg-black rounded-full"></div>
+              </div>
+
+              {/* Feed Header */}
+              <div className="p-4 border-b border-[#EFEFEF]">
+                <div className="flex items-center gap-4 mb-3">
+                  <img src={profile.avatar} className="w-16 h-16 rounded-full object-cover border border-[#DBDBDB]" />
+                  <div className="flex-1 flex justify-around text-center">
+                    <div>
+                      <div className="font-bold text-sm">{profile.postsCount + posts.length}</div>
+                      <div className="text-[10px] text-[#737373]">posts</div>
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm">{profile.followers}</div>
+                      <div className="text-[10px] text-[#737373]">seguidores</div>
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm">{profile.following}</div>
+                      <div className="text-[10px] text-[#737373]">seguidos</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs">
+                  <div className="font-bold">@{profile.username}</div>
+                  <div className="font-medium text-[#737373] text-[11px]">{profile.category}</div>
+                  <div className="whitespace-pre-line text-[#262626] mt-1">{profile.bio}</div>
+                  <a href="#" className="text-[#00376B] font-medium block truncate mt-0.5">{profile.website}</a>
+                </div>
+              </div>
+
+              {/* Cuadrícula Instagram 3x3 */}
+              <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-3 gap-0.5 bg-[#EFEFEF]">
+                {igPosts.map(post => (
+                  <div
+                    key={post.id}
+                    onClick={() => setSelectedPost(post)}
+                    className="relative aspect-square bg-white cursor-pointer group"
+                  >
+                    <img src={post.image} className="w-full h-full object-cover" />
+                    {post.type === "reel" && (
+                      <span className="absolute top-1.5 right-1.5 text-white text-[10px] drop-shadow">🎬</span>
+                    )}
+                    {post.type === "carousel" && (
+                      <span className="absolute top-1.5 right-1.5 text-white text-[10px] drop-shadow">📑</span>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                      ❤️ {post.likes}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* MODAL EDITAR PERFIL */}
+          {editingProfile && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl max-w-sm w-full p-5 space-y-3 shadow-xl">
+                <h3 className="font-bold text-base">Personalizar Perfil</h3>
+                <div>
+                  <label className="text-xs text-[#787774] block mb-1">Foto de perfil</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, (res) => setProfile({ ...profile, avatar: res }))}
+                    className="text-xs w-full mb-1"
+                  />
+                  <input
+                    type="text"
+                    value={profile.avatar}
+                    onChange={(e) => setProfile({ ...profile, avatar: e.target.value })}
+                    placeholder="o pega URL de la imagen"
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Usuario (@)</label>
+                  <input
+                    type="text"
+                    value={profile.username}
+                    onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Categoría</label>
+                  <input
+                    type="text"
+                    value={profile.category}
+                    onChange={(e) => setProfile({ ...profile, category: e.target.value })}
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Biografía</label>
+                  <textarea
+                    rows={3}
+                    value={profile.bio}
+                    onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Enlace</label>
+                  <input
+                    type="text"
+                    value={profile.website}
+                    onChange={(e) => setProfile({ ...profile, website: e.target.value })}
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setEditingProfile(false)}
+                    className="px-3 py-1.5 text-xs bg-[#2383E2] text-white rounded font-medium"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL DETALLES / EDITAR POST */}
+          {selectedPost && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl max-w-sm w-full p-5 space-y-3 shadow-xl">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-sm">Editar Publicación</h3>
+                  <button onClick={() => setSelectedPost(null)} className="text-xs text-gray-400 hover:text-black">✕</button>
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Título interno</label>
+                  <input
+                    type="text"
+                    value={selectedPost.title}
+                    onChange={(e) => {
+                      const updated = { ...selectedPost, title: e.target.value };
+                      setSelectedPost(updated);
+                      setPosts(posts.map(p => p.id === updated.id ? updated : p));
+                    }}
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block mb-1">Imagen del Post</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, (res) => {
+                      const updated = { ...selectedPost, image: res };
+                      setSelectedPost(updated);
+                      setPosts(posts.map(p => p.id === updated.id ? updated : p));
+                    })}
+                    className="text-xs w-full mb-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Fecha</label>
+                  <input
+                    type="date"
+                    value={selectedPost.date}
+                    onChange={(e) => {
+                      const updated = { ...selectedPost, date: e.target.value };
+                      setSelectedPost(updated);
+                      setPosts(posts.map(p => p.id === updated.id ? updated : p));
+                    }}
+                    className="w-full text-xs p-1.5 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#787774] block">Tipo</label>
+                  <select
+                    value={selectedPost.type}
+                    onChange={(e) => {
+                      const updated = { ...selectedPost, type: e.target.value };
+                      setSelectedPost(updated);
+                      setPosts(posts.map(p => p.id === updated.id ? updated : p));
+                    }}
+                    className="w-full text-xs p-1.5 border rounded"
+                  >
+                    <option value="photo">Foto simple</option>
+                    <option value="carousel">Carrusel</option>
+                    <option value="reel">Reel</option>
+                  </select>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    onClick={() => {
+                      setPosts(posts.filter(p => p.id !== selectedPost.id));
+                      setSelectedPost(null);
+                    }}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Eliminar post
+                  </button>
+                  <button
+                    onClick={() => setSelectedPost(null)}
+                    className="px-3 py-1.5 text-xs bg-[#2383E2] text-white rounded font-medium"
+                  >
+                    Listo
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
